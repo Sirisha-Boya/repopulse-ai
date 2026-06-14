@@ -1,0 +1,96 @@
+version: "3.9"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: repopulse-postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: repopulse_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d repopulse_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repopulse-network
+
+  # Redis (for background tasks)
+  redis:
+    image: redis:7-alpine
+    container_name: repopulse-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repopulse-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: repopulse-backend
+    environment:
+      DATABASE_URL: postgresql://user:password@postgres:5432/repopulse_ai
+      REDIS_URL: redis://redis:6379
+      ENVIRONMENT: development
+      DEBUG: "true"
+      SECRET_KEY: your-secret-key-change-in-production
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: http://localhost:3000/auth/callback
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    networks:
+      - repopulse-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: repopulse-frontend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    networks:
+      - repopulse-network
+    command: npm run dev -- --host
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  repopulse-network:
+    driver: bridge
