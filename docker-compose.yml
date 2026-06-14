@@ -43,16 +43,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: repopulse-backend
+    env_file: ./backend/.env
     environment:
       DATABASE_URL: postgresql://user:password@postgres:5432/repopulse_ai
       REDIS_URL: redis://redis:6379
       ENVIRONMENT: development
       DEBUG: "true"
       SECRET_KEY: your-secret-key-change-in-production
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_REDIRECT_URI: http://localhost:3000/auth/callback
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LOG_LEVEL: INFO
     ports:
       - "8000:8000"
@@ -73,9 +71,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: repopulse-frontend
+    env_file: ./frontend/.env
     environment:
       VITE_API_BASE_URL: http://localhost:8000
-      VITE_GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
     ports:
       - "3000:3000"
     depends_on:
